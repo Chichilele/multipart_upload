@@ -12,14 +12,14 @@ class ChunkedFile(FileModel):
     target_file: str
     nb_chunks: int
     chunk_size: int
-    chunks: List[Chunk]
+    chunks: dict
 
     def __init__(
         self,
         target_file: str,
         nb_chunks: int,
         chunk_size: int,
-        chunks_factory=lambda: [],
+        chunks_factory=lambda: {},
     ):
         self.chunks_folder = target_file + "_chunks"
         self.target_file = target_file
@@ -31,27 +31,23 @@ class ChunkedFile(FileModel):
 
         super().__init__(filename=info_filename)
 
-    @staticmethod
-    def load(filename: str) -> "ChunkedFile":
-        chunked_file = ChunkedFile(filename, None, None)
+    def load(self, filename: str):
+        abs_path = os.path.join(self.file_store.file_store_root, self.filename)
 
-        with open(chunked_file.filename, "r") as fd:
-            file_info = fd.read()
+        with open(abs_path, "r") as fd:
+            file_info = json.load(fd)
 
-        chunked_file.chunks_folder = file_info["target_file"] + "_chunks"
-        chunked_file.target_file = file_info["target_file"]
-        chunked_file.nb_chunks = file_info["nb_chunks"]
-        chunked_file.chunk_size = file_info["chunk_size"]
-        chunked_file.chunks = ChunkedFile._get_all_chunks(file_info["chunks_info"])
+        self.chunks_folder = file_info["filename"] + "_chunks"
+        self.target_file = file_info["filename"]
+        self.nb_chunks = file_info["nb_chunks"]
+        self.chunk_size = file_info["chunk_size"]
+        self.chunks = self.get_available_chunks(file_info["chunks_info"])
 
-        return chunked_file
-
-    @staticmethod
-    def _get_all_chunks(chunks_info: List[dict]) -> List[Chunk]:
-        chunks = []
-        for chunk_info in chunks_info:
-            chunk = Chunk(chunk_info["chunk_filename"], chunk_info["chunk_id"])
-            chunks.append(chunk)
+    def get_available_chunks(chunks_info: List[dict]) -> dict:
+        chunks = {}
+        for chunk_id, chunk_filename in chunks_info.items():
+            chunk = Chunk(chunk_filename, chunk_id)
+            chunks[chunk.id] = chunk
 
         return chunks
 
@@ -80,7 +76,7 @@ class ChunkedFile(FileModel):
         os.rmdir(abs_path)
 
     def get_chunked_file_info(self) -> dict:
-        chunks_info = [chunk.get_chunk_info() for chunk in self.chunks]
+        chunks_info = {chunk.id: chunk.filename for chunk in self.chunks.values()}
         chunked_file_info = {
             "filename": self.target_file,
             "nb_chunks": self.nb_chunks,
@@ -93,7 +89,7 @@ class ChunkedFile(FileModel):
     def get_nb_completed_chunks(self) -> int:
         return len(self.chunks)
 
-    def add_chunk(self, chunk_id: int, chunk_size: int, chunk_data: bytes) -> Chunk:
+    def add_chunk(self, new_chunk: Chunk, chunk_data: bytes):
         """Add a new chunk and save it.
 
         Args:
@@ -103,17 +99,11 @@ class ChunkedFile(FileModel):
         Returns:
             Chunk: Added chunk object.
         """
-        if len(chunk_data) != chunk_size or chunk_size != self.chunk_size:
-            raise ValueError("Chunk size doesn't match.")
-        if chunk_id > self.nb_chunks:
+        if new_chunk.id > self.nb_chunks:
             raise ValueError("Chunk id bigger than the number of chunks")
-        if chunk_id in [chunk.id for chunk in self.chunks]:
-            raise ValueError("Chunk id bigger than the number of chunks")
+        if new_chunk.id in [chunk_id for chunk_id in self.chunks.keys()]:
+            raise ValueError("Chunk id already processed.")
 
-        new_chunk_filename: str = f"{self.target_file}_{id:4}.chunk"
-        new_chunk: Chunk = Chunk(new_chunk_filename, chunk_id)
-        new_chunk.save(chunk_data)
-        self.chunks.append(new_chunk)
+        new_chunk.save(chunk_data, self.chunks_folder)
+        self.chunks[new_chunk.id] = new_chunk
         self.save()
-
-        return new_chunk
