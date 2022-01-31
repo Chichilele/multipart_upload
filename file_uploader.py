@@ -25,11 +25,20 @@ class ChunkedFileUploader:
         return chunked_file.get()
 
     def upload_chunk(
-        self, filename, chunk_id: int, chunk_size: int, chunk_data: bytes
+        self,
+        filename: str,
+        chunk_id: int,
+        chunk_size: int,
+        chunk_data: bytes,
     ) -> Chunk:
-        chunked_file = ChunkedFile.load(filename)
 
-        chunk = chunked_file.add_chunk(chunk_id, chunk_size, chunk_data)
+        chunked_file = ChunkedFile(filename, None, None)
+        chunked_file.load(filename=filename)
+
+        new_chunk_filename: str = f"{filename}_{chunk_id:04}.chunk"
+        new_chunk: Chunk = Chunk(new_chunk_filename, chunk_id)
+
+        chunk = chunked_file.add_chunk(new_chunk, chunk_data)
 
         return chunk
 
