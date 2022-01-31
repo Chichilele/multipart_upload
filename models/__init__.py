@@ -6,6 +6,7 @@ class FileStore:
 
     def __init__(self, file_store_root: str = "uploads") -> None:
         self.file_store_root = file_store_root
+        self.create()
 
     def create(self) -> str:
         if not os.path.exists(self.file_store_root):
