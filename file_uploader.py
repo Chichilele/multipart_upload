@@ -1,3 +1,4 @@
+import os
 from models import ChunkedFile
 from models.chunk import Chunk
 
@@ -12,12 +13,12 @@ class ChunkedFileUploader:
         """Start a multi part file upload.
 
         Args:
-            filename (str): name of the file to upload.
-            nb_chunks (int): number of chunks to part the file in.
-            chunk_size (int): size of each chunk.
+            `filename` (str): name of the file to upload.
+            `nb_chunks` (int): number of chunks to part the file in.
+            `chunk_size` (int): size of each chunk.
 
         Returns:
-            dct: resource info.
+            dict: resource info.
         """
         chunked_file = ChunkedFile(filename, nb_chunks, chunk_size)
         chunked_file.create()
@@ -42,8 +43,14 @@ class ChunkedFileUploader:
 
         return chunk
 
+    ## TODO: WIP
+    def finalise(self, filename: str):
+        chunked_file = ChunkedFile(filename, None, None)
+        chunked_file.load(filename=filename)
 
-from file_uploader import ChunkedFileUploader
-
-# cfu = ChunkedFileUploader()
-# cfu.start("image.png", 24, 1024 * 100)
+        with open(filename, "wb") as target_fd:
+            for chunk_id, chunk in chunked_file.get_chunks().items():
+                chunk_path = os.path.join(chunked_file.chunks_folder, chunk.filename)
+                with open(chunk_path, "rb") as f:
+                    f.seek(chunked_file.chunk_size * int(chunk_id))
+                    f.write(chunk.get_data(chunked_file.chunks_folder))
