@@ -51,6 +51,7 @@ class ChunkedFile(FileModel):
 
         return chunks
 
+    ## TODO: Should return the entity
     def get(self) -> dict:
         abs_path = os.path.join(self.file_store.file_store_root, self.filename)
 
@@ -64,6 +65,7 @@ class ChunkedFile(FileModel):
         os.mkdir(abs_path)
         self.save()
 
+    ## TODO: Should we really save here? Or should there be a saving interface for entities?
     def save(self):
         file_info = self.get_chunked_file_info()
         abs_path = os.path.join(self.file_store.file_store_root, self.filename)
